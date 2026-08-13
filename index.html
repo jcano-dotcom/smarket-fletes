@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Smarket Fletes</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1d3557" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- PANTALLA DE LOGIN -->
+  <section id="pantalla-login" class="pantalla">
+    <div class="tarjeta-login">
+      <h1>🚚 Smarket Fletes</h1>
+      <p class="subtitulo">Ingresá con tu usuario de chofer</p>
+      <form id="form-login">
+        <input type="text" id="input-usuario" placeholder="Usuario" autocomplete="username" required />
+        <input type="password" id="input-password" placeholder="Contraseña" autocomplete="current-password" required />
+        <button type="submit">Ingresar</button>
+      </form>
+      <p id="error-login" class="mensaje-error"></p>
+    </div>
+  </section>
+
+  <!-- PANTALLA DE PEDIDOS -->
+  <section id="pantalla-pedidos" class="pantalla oculto">
+    <header class="encabezado">
+      <div>
+        <span class="saludo">Hola, <strong id="nombre-chofer"></strong></span>
+      </div>
+      <button id="btn-salir" class="btn-secundario">Salir</button>
+    </header>
+
+    <div id="lista-pedidos" class="lista-pedidos">
+      <!-- Las tarjetas de pedido se insertan por JS -->
+    </div>
+
+    <p id="sin-pedidos" class="mensaje-vacio oculto">No tenés pedidos pendientes 🎉</p>
+    <button id="btn-actualizar" class="btn-flotante" title="Actualizar">⟳</button>
+  </section>
+
+  <!-- PANTALLA DE ADJUNTAR REMITO -->
+  <section id="pantalla-remito" class="pantalla oculto">
+    <header class="encabezado">
+      <button id="btn-volver" class="btn-secundario">← Volver</button>
+      <span class="saludo">Pedido <strong id="remito-pedido-id"></strong></span>
+    </header>
+
+    <div class="detalle-pedido">
+      <p><strong id="remito-cliente"></strong></p>
+      <p id="remito-direccion" class="texto-secundario"></p>
+    </div>
+
+    <div class="zona-foto">
+      <img id="preview-foto" class="oculto" alt="Vista previa del remito" />
+      <label for="input-foto" id="etiqueta-foto" class="btn-foto">
+        📷 Sacar / adjuntar foto del remito
+      </label>
+      <input type="file" id="input-foto" accept="image/*" capture="environment" hidden />
+    </div>
+
+    <button id="btn-confirmar" class="btn-primario" disabled>Confirmar entrega</button>
+    <p id="mensaje-remito" class="mensaje-error"></p>
+  </section>
+
+  <div id="spinner" class="spinner oculto"><div class="loader"></div></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
