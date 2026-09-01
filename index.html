@@ -2,18 +2,20 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Smarket Fletes — Panel</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="panel-style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Smarket Fletes</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1d3557" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <!-- LOGIN -->
+  <!-- PANTALLA DE LOGIN -->
   <section id="pantalla-login" class="pantalla">
     <div class="tarjeta-login">
-      <h1>📍 Panel de Seguimiento</h1>
-      <p class="subtitulo">Acceso solo para administración</p>
+      <h1>🚚 Smarket Fletes</h1>
+      <p class="subtitulo">Ingresá con tu usuario de chofer</p>
       <form id="form-login">
         <input type="text" id="input-usuario" placeholder="Usuario" autocomplete="username" required />
         <input type="password" id="input-password" placeholder="Contraseña" autocomplete="current-password" required />
@@ -23,27 +25,49 @@
     </div>
   </section>
 
-  <!-- PANEL -->
-  <section id="pantalla-panel" class="pantalla oculto">
+  <!-- PANTALLA DE PEDIDOS -->
+  <section id="pantalla-pedidos" class="pantalla oculto">
     <header class="encabezado">
-      <div class="resumen">
-        <span class="chip chip-pendiente"><strong id="cant-pendientes">0</strong> pendientes</span>
-        <span class="chip chip-entregado"><strong id="cant-entregados">0</strong> entregados</span>
-        <span class="chip chip-cancelado"><strong id="cant-cancelados">0</strong> cancelados</span>
+      <div>
+        <span class="saludo">Hola, <strong id="nombre-chofer"></strong></span>
       </div>
-      <div class="controles">
-        <select id="filtro-chofer">
-          <option value="">Todos los choferes</option>
-        </select>
-        <span id="ultima-actualizacion" class="texto-secundario"></span>
-        <button id="btn-salir" class="btn-secundario">Salir</button>
-      </div>
+      <button id="btn-salir" class="btn-secundario">Salir</button>
     </header>
 
-    <div id="mapa"></div>
+    <div id="lista-pedidos" class="lista-pedidos">
+      <!-- Las tarjetas de pedido se insertan por JS -->
+    </div>
+
+    <p id="sin-pedidos" class="mensaje-vacio oculto">No tenés pedidos pendientes 🎉</p>
+    <button id="btn-actualizar" class="btn-flotante" title="Actualizar">⟳</button>
   </section>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="panel.js"></script>
+  <!-- PANTALLA DE ADJUNTAR REMITO -->
+  <section id="pantalla-remito" class="pantalla oculto">
+    <header class="encabezado">
+      <button id="btn-volver" class="btn-secundario">← Volver</button>
+      <span class="saludo">Pedido <strong id="remito-pedido-id"></strong></span>
+    </header>
+
+    <div class="detalle-pedido">
+      <p><strong id="remito-cliente"></strong></p>
+      <p id="remito-direccion" class="texto-secundario"></p>
+    </div>
+
+    <div class="zona-foto">
+      <img id="preview-foto" class="oculto" alt="Vista previa del remito" />
+      <label for="input-foto" id="etiqueta-foto" class="btn-foto">
+        📷 Sacar / adjuntar foto del remito
+      </label>
+      <input type="file" id="input-foto" accept="image/*" capture="environment" hidden />
+    </div>
+
+    <button id="btn-confirmar" class="btn-primario" disabled>Confirmar entrega</button>
+    <p id="mensaje-remito" class="mensaje-error"></p>
+  </section>
+
+  <div id="spinner" class="spinner oculto"><div class="loader"></div></div>
+
+  <script src="app.js"></script>
 </body>
 </html>
