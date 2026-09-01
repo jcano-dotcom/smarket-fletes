@@ -1,29 +1,36 @@
 // ============================================
-// CONFIGURACIÓN — misma URL de Apps Script que usa la app de choferes
+// CONFIGURACIÓN — pegar aquí la URL del Apps Script publicado como Web App
 // ============================================
-const API_URL = 'PEGAR_AQUI_LA_URL_DE_TU_APPS_SCRIPT_WEB_APP';
-const INTERVALO_ACTUALIZACION_MS = 90 * 1000; // 90 segundos
+const API_URL = 'https://script.google.com/macros/s/AKfycbzR_nguUBtWl4Tqu3BNF3IGfriB8ER5JxoKsae4xAvYh_nVFN1NaCEJfvAidiAKJgWrSg/exec';
 
-// Coordenadas del depósito (Maestro Santana 2561, Béccar) como centro inicial del mapa
-const CENTRO_INICIAL = [-34.4740, -58.5390];
-
+// ---------- Elementos ----------
 const pantallaLogin = document.getElementById('pantalla-login');
-const pantallaPanel = document.getElementById('pantalla-panel');
+const pantallaPedidos = document.getElementById('pantalla-pedidos');
+const pantallaRemito = document.getElementById('pantalla-remito');
+const spinner = document.getElementById('spinner');
+
 const formLogin = document.getElementById('form-login');
 const errorLogin = document.getElementById('error-login');
-const filtroChofer = document.getElementById('filtro-chofer');
-const ultimaActualizacion = document.getElementById('ultima-actualizacion');
-const cantPendientes = document.getElementById('cant-pendientes');
-const cantEntregados = document.getElementById('cant-entregados');
-const cantCancelados = document.getElementById('cant-cancelados');
+const nombreChofer = document.getElementById('nombre-chofer');
+const listaPedidos = document.getElementById('lista-pedidos');
+const sinPedidos = document.getElementById('sin-pedidos');
 
-let mapa = null;
-let marcadores = [];
-let credenciales = null;
-let intervaloId = null;
+let pedidoSeleccionado = null;
+let fotoBase64 = null;
 
-// ---------- API ----------
+// ---------- Utilidades ----------
+function mostrarSpinner(mostrar) {
+  spinner.classList.toggle('oculto', !mostrar);
+}
+
+function cambiarPantalla(pantalla) {
+  [pantallaLogin, pantallaPedidos, pantallaRemito].forEach(p => p.classList.add('oculto'));
+  pantalla.classList.remove('oculto');
+}
+
+// Llama al Apps Script evitando el preflight de CORS (por eso usamos text/plain)
 async function llamarAPI(accion, datos = {}) {
+  mostrarSpinner(true);
   try {
     const respuesta = await fetch(API_URL, {
       method: 'POST',
@@ -32,27 +39,29 @@ async function llamarAPI(accion, datos = {}) {
     });
     return await respuesta.json();
   } catch (err) {
-    return { ok: false, error: 'No se pudo conectar con el servidor' };
+    return { ok: false, error: 'No se pudo conectar. Revisá tu conexión a internet.' };
+  } finally {
+    mostrarSpinner(false);
   }
 }
 
-// ---------- Sesión (dura mientras esté abierta la pestaña) ----------
-function guardarSesion(usuario, password) {
-  sessionStorage.setItem('admin_usuario', usuario);
-  sessionStorage.setItem('admin_password', password);
+// ---------- Sesión ----------
+function guardarSesion(usuario, nombre) {
+  localStorage.setItem('chofer_usuario', usuario);
+  localStorage.setItem('chofer_nombre', nombre);
 }
+
 function obtenerSesion() {
   return {
-    usuario: sessionStorage.getItem('admin_usuario'),
-    password: sessionStorage.getItem('admin_password')
+    usuario: localStorage.getItem('chofer_usuario'),
+    nombre: localStorage.getItem('chofer_nombre')
   };
 }
+
 function cerrarSesion() {
-  sessionStorage.removeItem('admin_usuario');
-  sessionStorage.removeItem('admin_password');
-  if (intervaloId) clearInterval(intervaloId);
-  pantallaPanel.classList.add('oculto');
-  pantallaLogin.classList.remove('oculto');
+  localStorage.removeItem('chofer_usuario');
+  localStorage.removeItem('chofer_nombre');
+  cambiarPantalla(pantallaLogin);
 }
 
 // ---------- Login ----------
@@ -62,139 +71,154 @@ formLogin.addEventListener('submit', async (e) => {
   const usuario = document.getElementById('input-usuario').value.trim();
   const password = document.getElementById('input-password').value;
 
-  const resultado = await llamarAPI('loginAdmin', { usuario, password });
+  const resultado = await llamarAPI('login', { usuario, password });
   if (resultado.ok) {
-    guardarSesion(usuario, password);
-    iniciarPanel();
+    guardarSesion(resultado.usuario, resultado.nombre);
+    iniciarPantallaPedidos();
   } else {
     errorLogin.textContent = resultado.error || 'Error al ingresar';
   }
 });
 
 document.getElementById('btn-salir').addEventListener('click', cerrarSesion);
+document.getElementById('btn-volver').addEventListener('click', () => {
+  pedidoSeleccionado = null;
+  fotoBase64 = null;
+  document.getElementById('input-foto').value = '';
+  document.getElementById('preview-foto').classList.add('oculto');
+  document.getElementById('btn-confirmar').disabled = true;
+  cambiarPantalla(pantallaPedidos);
+});
 
-// ---------- Mapa ----------
-function inicializarMapa() {
-  if (mapa) return;
-  mapa = L.map('mapa').setView(CENTRO_INICIAL, 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap',
-    maxZoom: 19
-  }).addTo(mapa);
-}
-
-function iconoPara(estado) {
-  let color = '#e63946'; // pendiente = rojo
-  if (estado === 'Entregado') color = '#2a9d8f'; // verde
-  if (estado === 'Cancelado') color = '#8d99ae'; // gris
-  return L.divIcon({
-    className: '',
-    html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8]
-  });
-}
-
-function limpiarMarcadores() {
-  marcadores.forEach(m => mapa.removeLayer(m));
-  marcadores = [];
-}
-
-function dibujarPedidos(pedidos) {
-  limpiarMarcadores();
-
-  const choferSeleccionado = filtroChofer.value;
-  let pendientes = 0, entregados = 0, cancelados = 0;
-  const puntos = [];
-
-  pedidos.forEach(p => {
-    if (p.estado === 'Entregado') entregados++;
-    else if (p.estado === 'Cancelado') cancelados++;
-    else pendientes++;
-
-    if (choferSeleccionado && p.chofer !== choferSeleccionado) return;
-    if (!p.lat || !p.lng) return;
-
-    const marcador = L.marker([p.lat, p.lng], { icon: iconoPara(p.estado) }).addTo(mapa);
-    const claseEstado = p.estado === 'Entregado' ? 'estado-entregado'
-      : p.estado === 'Cancelado' ? 'estado-cancelado' : 'estado-pendiente';
-    const bloqueObservacion = p.observaciones && p.observaciones !== 'Sin observaciones'
-      ? `<div class="observacion">⚠️ ${p.observaciones}</div>`
-      : '';
-
-    marcador.bindPopup(`
-      <div class="popup-pedido">
-        <div class="titulo">Pedido ${p.id} — ${p.cliente}</div>
-        <div>${p.direccion || ''}</div>
-        <div>Chofer: <strong>${p.chofer}</strong></div>
-        <div class="${claseEstado}">${p.estado}</div>
-        ${bloqueObservacion}
-      </div>
-    `);
-
-    marcadores.push(marcador);
-    puntos.push([p.lat, p.lng]);
-  });
-
-  cantPendientes.textContent = pendientes;
-  cantEntregados.textContent = entregados;
-  cantCancelados.textContent = cancelados;
-
-  if (puntos.length > 0) {
-    mapa.fitBounds(puntos, { padding: [40, 40], maxZoom: 15 });
-  }
-}
-
-function actualizarFiltroChoferes(pedidos) {
-  const seleccionActual = filtroChofer.value;
-  const choferes = [...new Set(pedidos.map(p => p.chofer))].sort();
-
-  filtroChofer.innerHTML = '<option value="">Todos los choferes</option>';
-  choferes.forEach(c => {
-    const opcion = document.createElement('option');
-    opcion.value = c;
-    opcion.textContent = c;
-    filtroChofer.appendChild(opcion);
-  });
-  filtroChofer.value = seleccionActual;
-}
-
-// ---------- Carga de datos ----------
-let pedidosActuales = [];
-
-async function actualizarDatos() {
+// ---------- Pedidos ----------
+async function cargarPedidos() {
   const sesion = obtenerSesion();
-  const resultado = await llamarAPI('pedidosMapa', sesion);
+  const resultado = await llamarAPI('pedidos', { usuario: sesion.usuario });
 
+  listaPedidos.innerHTML = '';
   if (!resultado.ok) {
-    if (resultado.error === 'No autorizado') {
-      cerrarSesion();
-    }
+    sinPedidos.textContent = resultado.error;
+    sinPedidos.classList.remove('oculto');
     return;
   }
 
-  pedidosActuales = resultado.pedidos;
-  actualizarFiltroChoferes(pedidosActuales);
-  dibujarPedidos(pedidosActuales);
+  if (resultado.pedidos.length === 0) {
+    sinPedidos.classList.remove('oculto');
+    return;
+  }
+  sinPedidos.classList.add('oculto');
 
-  const ahora = new Date();
-  ultimaActualizacion.textContent = 'Actualizado ' + ahora.toLocaleTimeString('es-AR');
+  resultado.pedidos.forEach(pedido => {
+    const tarjeta = document.createElement('div');
+    tarjeta.className = 'tarjeta-pedido';
+    tarjeta.innerHTML = `
+      <div class="id-pedido">Pedido ${pedido.id}</div>
+      <div class="cliente">${pedido.cliente}</div>
+      <div class="direccion">${pedido.direccion || ''}</div>
+      <button class="btn-entregar" data-id="${pedido.id}">Entregar y adjuntar remito</button>
+      <button class="btn-cancelar" data-id="${pedido.id}">Cancelado</button>
+    `;
+    tarjeta.querySelector('.btn-entregar').addEventListener('click', () => abrirPantallaRemito(pedido));
+    tarjeta.querySelector('.btn-cancelar').addEventListener('click', () => cancelarPedido(pedido));
+    listaPedidos.appendChild(tarjeta);
+  });
 }
 
-filtroChofer.addEventListener('change', () => dibujarPedidos(pedidosActuales));
+async function cancelarPedido(pedido) {
+  const confirmado = confirm(`¿Confirmás que el pedido ${pedido.id} (${pedido.cliente}) fue cancelado por el cliente?`);
+  if (!confirmado) return;
 
-function iniciarPanel() {
-  pantallaLogin.classList.add('oculto');
-  pantallaPanel.classList.remove('oculto');
-  inicializarMapa();
-  actualizarDatos();
-  intervaloId = setInterval(actualizarDatos, INTERVALO_ACTUALIZACION_MS);
+  const resultado = await llamarAPI('cancelarPedido', { pedidoId: pedido.id });
+  if (resultado.ok) {
+    cargarPedidos();
+  } else {
+    alert(resultado.error || 'No se pudo cancelar el pedido');
+  }
 }
+
+function iniciarPantallaPedidos() {
+  const sesion = obtenerSesion();
+  nombreChofer.textContent = sesion.nombre || sesion.usuario;
+  cambiarPantalla(pantallaPedidos);
+  cargarPedidos();
+}
+
+document.getElementById('btn-actualizar').addEventListener('click', cargarPedidos);
+
+// ---------- Adjuntar remito ----------
+function abrirPantallaRemito(pedido) {
+  pedidoSeleccionado = pedido;
+  document.getElementById('remito-pedido-id').textContent = pedido.id;
+  document.getElementById('remito-cliente').textContent = pedido.cliente;
+  document.getElementById('remito-direccion').textContent = pedido.direccion || '';
+  document.getElementById('mensaje-remito').textContent = '';
+  cambiarPantalla(pantallaRemito);
+}
+
+document.getElementById('input-foto').addEventListener('change', (e) => {
+  const archivo = e.target.files[0];
+  if (!archivo) return;
+
+  const lector = new FileReader();
+  lector.onload = () => {
+    fotoBase64 = lector.result; // incluye el prefijo data:image/...;base64,
+    const preview = document.getElementById('preview-foto');
+    preview.src = fotoBase64;
+    preview.classList.remove('oculto');
+    document.getElementById('btn-confirmar').disabled = false;
+  };
+  lector.readAsDataURL(archivo);
+});
+
+document.getElementById('btn-confirmar').addEventListener('click', async () => {
+  if (!pedidoSeleccionado || !fotoBase64) return;
+
+  const mensaje = document.getElementById('mensaje-remito');
+  mensaje.textContent = '';
+  mensaje.style.color = '';
+
+  const nombreArchivo = `remito_${pedidoSeleccionado.id}_${Date.now()}.jpg`;
+  const resultado = await llamarAPI('subirRemito', {
+    pedidoId: pedidoSeleccionado.id,
+    imagenBase64: fotoBase64,
+    nombreArchivo
+  });
+
+  if (resultado.ok) {
+    const hayFaltante = resultado.observaciones && resultado.observaciones !== 'Sin observaciones';
+
+    if (hayFaltante) {
+      mensaje.style.color = 'var(--rojo)';
+      mensaje.textContent = '⚠️ Entrega confirmada, pero se detectó: ' + resultado.observaciones;
+    } else {
+      mensaje.style.color = 'var(--verde)';
+      mensaje.textContent = 'Entrega confirmada ✅';
+    }
+
+    setTimeout(() => {
+      pedidoSeleccionado = null;
+      fotoBase64 = null;
+      cambiarPantalla(pantallaPedidos);
+      cargarPedidos();
+    }, hayFaltante ? 2500 : 900);
+  } else {
+    mensaje.textContent = resultado.error || 'No se pudo confirmar la entrega';
+  }
+});
 
 // ---------- Arranque ----------
 (function iniciar() {
   const sesion = obtenerSesion();
-  if (sesion.usuario && sesion.password) {
-    iniciarPanel();
+  if (sesion.usuario) {
+    iniciarPantallaPedidos();
+  } else {
+    cambiarPantalla(pantallaLogin);
   }
 })();
+
+// ---------- Service worker (PWA) ----------
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
