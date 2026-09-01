@@ -1,7 +1,7 @@
 // ============================================
 // CONFIGURACIÓN — pegar aquí la URL del Apps Script publicado como Web App
 // ============================================
-const API_URL = 'PEGAR_AQUI_LA_URL_DE_TU_APPS_SCRIPT_WEB_APP';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzR_nguUBtWl4Tqu3BNF3IGfriB8ER5JxoKsae4xAvYh_nVFN1NaCEJfvAidiAKJgWrSg/exec';
 
 // ---------- Elementos ----------
 const pantallaLogin = document.getElementById('pantalla-login');
