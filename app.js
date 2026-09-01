@@ -1,7 +1,7 @@
 // ============================================
 // CONFIGURACIÓN — pegar aquí la URL del Apps Script publicado como Web App
 // ============================================
-const API_URL = 'https://script.google.com/macros/s/AKfycbwSDgtSxCqZrOX1sgxemm8gQS4c5CSROgtVyfqMf41_dJdSt3rP_8OlhzO6YpXY-SoRXQ/exec';
+const API_URL = 'PEGAR_AQUI_LA_URL_DE_TU_APPS_SCRIPT_WEB_APP';
 
 // ---------- Elementos ----------
 const pantallaLogin = document.getElementById('pantalla-login');
@@ -115,11 +115,25 @@ async function cargarPedidos() {
       <div class="id-pedido">Pedido ${pedido.id}</div>
       <div class="cliente">${pedido.cliente}</div>
       <div class="direccion">${pedido.direccion || ''}</div>
-      <button data-id="${pedido.id}">Entregar y adjuntar remito</button>
+      <button class="btn-entregar" data-id="${pedido.id}">Entregar y adjuntar remito</button>
+      <button class="btn-cancelar" data-id="${pedido.id}">Cancelado</button>
     `;
-    tarjeta.querySelector('button').addEventListener('click', () => abrirPantallaRemito(pedido));
+    tarjeta.querySelector('.btn-entregar').addEventListener('click', () => abrirPantallaRemito(pedido));
+    tarjeta.querySelector('.btn-cancelar').addEventListener('click', () => cancelarPedido(pedido));
     listaPedidos.appendChild(tarjeta);
   });
+}
+
+async function cancelarPedido(pedido) {
+  const confirmado = confirm(`¿Confirmás que el pedido ${pedido.id} (${pedido.cliente}) fue cancelado por el cliente?`);
+  if (!confirmado) return;
+
+  const resultado = await llamarAPI('cancelarPedido', { pedidoId: pedido.id });
+  if (resultado.ok) {
+    cargarPedidos();
+  } else {
+    alert(resultado.error || 'No se pudo cancelar el pedido');
+  }
 }
 
 function iniciarPantallaPedidos() {
@@ -171,14 +185,22 @@ document.getElementById('btn-confirmar').addEventListener('click', async () => {
   });
 
   if (resultado.ok) {
-    mensaje.style.color = 'var(--verde)';
-    mensaje.textContent = 'Entrega confirmada ✅';
+    const hayFaltante = resultado.observaciones && resultado.observaciones !== 'Sin observaciones';
+
+    if (hayFaltante) {
+      mensaje.style.color = 'var(--rojo)';
+      mensaje.textContent = '⚠️ Entrega confirmada, pero se detectó: ' + resultado.observaciones;
+    } else {
+      mensaje.style.color = 'var(--verde)';
+      mensaje.textContent = 'Entrega confirmada ✅';
+    }
+
     setTimeout(() => {
       pedidoSeleccionado = null;
       fotoBase64 = null;
       cambiarPantalla(pantallaPedidos);
       cargarPedidos();
-    }, 900);
+    }, hayFaltante ? 2500 : 900);
   } else {
     mensaje.textContent = resultado.error || 'No se pudo confirmar la entrega';
   }
