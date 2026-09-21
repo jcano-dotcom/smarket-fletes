@@ -34,11 +34,16 @@
       <button id="btn-salir" class="btn-secundario">Salir</button>
     </header>
 
+    <div class="barra-busqueda">
+      <input type="text" id="input-busqueda" inputmode="numeric" placeholder="Buscar por número de pedido..." />
+    </div>
+
     <div id="lista-pedidos" class="lista-pedidos">
       <!-- Las tarjetas de pedido se insertan por JS -->
     </div>
 
     <p id="sin-pedidos" class="mensaje-vacio oculto">No tenés pedidos pendientes 🎉</p>
+    <p id="sin-resultados" class="mensaje-vacio oculto">No se encontró ningún pedido con ese número</p>
     <button id="btn-actualizar" class="btn-flotante" title="Actualizar">⟳</button>
   </section>
 
