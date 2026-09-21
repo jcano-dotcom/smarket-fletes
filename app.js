@@ -14,6 +14,8 @@ const errorLogin = document.getElementById('error-login');
 const nombreChofer = document.getElementById('nombre-chofer');
 const listaPedidos = document.getElementById('lista-pedidos');
 const sinPedidos = document.getElementById('sin-pedidos');
+const sinResultados = document.getElementById('sin-resultados');
+const inputBusqueda = document.getElementById('input-busqueda');
 
 let pedidoSeleccionado = null;
 let fotoBase64 = null;
@@ -91,24 +93,47 @@ document.getElementById('btn-volver').addEventListener('click', () => {
 });
 
 // ---------- Pedidos ----------
+let pedidosActuales = [];
+
 async function cargarPedidos() {
   const sesion = obtenerSesion();
   const resultado = await llamarAPI('pedidos', { usuario: sesion.usuario });
 
-  listaPedidos.innerHTML = '';
   if (!resultado.ok) {
+    listaPedidos.innerHTML = '';
+    sinResultados.classList.add('oculto');
     sinPedidos.textContent = resultado.error;
     sinPedidos.classList.remove('oculto');
+    pedidosActuales = [];
     return;
   }
 
-  if (resultado.pedidos.length === 0) {
+  pedidosActuales = resultado.pedidos;
+  renderizarPedidos();
+}
+
+function renderizarPedidos() {
+  const busqueda = inputBusqueda.value.trim();
+  const pedidosAMostrar = busqueda
+    ? pedidosActuales.filter(p => String(p.id).includes(busqueda))
+    : pedidosActuales;
+
+  listaPedidos.innerHTML = '';
+
+  if (pedidosActuales.length === 0) {
+    sinResultados.classList.add('oculto');
     sinPedidos.classList.remove('oculto');
     return;
   }
   sinPedidos.classList.add('oculto');
 
-  resultado.pedidos.forEach(pedido => {
+  if (pedidosAMostrar.length === 0) {
+    sinResultados.classList.remove('oculto');
+    return;
+  }
+  sinResultados.classList.add('oculto');
+
+  pedidosAMostrar.forEach(pedido => {
     const tarjeta = document.createElement('div');
     tarjeta.className = 'tarjeta-pedido';
     tarjeta.innerHTML = `
@@ -123,6 +148,8 @@ async function cargarPedidos() {
     listaPedidos.appendChild(tarjeta);
   });
 }
+
+inputBusqueda.addEventListener('input', renderizarPedidos);
 
 async function cancelarPedido(pedido) {
   const confirmado = confirm(`¿Confirmás que el pedido ${pedido.id} (${pedido.cliente}) fue cancelado por el cliente?`);
