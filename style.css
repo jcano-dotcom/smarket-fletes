@@ -79,6 +79,16 @@ body {
   font-size: 14px;
 }
 
+.barra-busqueda { margin-bottom: 14px; }
+.barra-busqueda input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 15px;
+  background: white;
+}
+
 .lista-pedidos { display: flex; flex-direction: column; gap: 12px; }
 .tarjeta-pedido {
   background: white;
